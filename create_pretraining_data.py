@@ -25,6 +25,7 @@ import tensorflow as tf
 
 flags = tf.flags
 
+
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string("input_file", None,
