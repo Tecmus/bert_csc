@@ -1,5 +1,11 @@
 export BERT_BASE_DIR=/home/azureuser/projects/chinese_L-12_H-768_A-12/chinese_L-12_H-768_A-12
 
+wget -O ./model/chinese_L-12_H-768_A-12.zip  -c https://storage.googleapis.com/bert_models/2018_11_03/chinese_L-12_H-768_A-12.zip  
+cd ./model
+unzip chinese_L-12_H-768_A-12.zip
+cd ..
+export BERT_BASE_DIR=/kaggle/working/bert_csc/csc/model/chinese_L-12_H-768_A-12
+
 python run_pretraining.py \
   --input_file=/tmp/tf_examples.tfrecord \
   --output_dir=/tmp/pretraining_output \
