@@ -23,6 +23,7 @@ import os
 import modeling
 import optimization
 import tensorflow as tf
+import tokenization
 
 flags = tf.flags
 
@@ -58,7 +59,16 @@ flags.DEFINE_integer(
     "Maximum number of masked LM predictions per sequence. "
     "Must match data generation.")
 
+flags.DEFINE_string("vocab_file", None,
+                    "The vocabulary file that the BERT model was trained on.")
+flags.DEFINE_bool(
+    "do_lower_case", True,
+    "Whether to lower case the input text. Should be True for uncased "
+    "models and False for cased models.")
+
 flags.DEFINE_bool("do_train", False, "Whether to run training.")
+
+flags.DEFINE_bool("do_predict", False, "Whether to run predict.")
 
 flags.DEFINE_bool("do_eval", False, "Whether to run eval on the dev set.")
 
@@ -137,15 +147,6 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
         token_type_ids=segment_ids,
         use_one_hot_embeddings=use_one_hot_embeddings)
 
-    (masked_lm_loss,
-     masked_lm_example_loss, masked_lm_log_probs) = get_masked_lm_output(
-         bert_config, model.get_sequence_output(), model.get_embedding_table(),
-         masked_lm_positions, masked_lm_ids, masked_lm_weights)
-
-
-
-    total_loss = masked_lm_loss 
-
     tvars = tf.trainable_variables()
 
     initialized_variable_names = {}
@@ -173,16 +174,34 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
 
     output_spec = None
     if mode == tf.estimator.ModeKeys.TRAIN:
+      (masked_lm_loss,masked_lm_example_loss, masked_lm_log_probs) = get_masked_lm_output(
+         bert_config, model.get_sequence_output(), model.get_embedding_table(),
+         masked_lm_positions, masked_lm_ids, masked_lm_weights)
       train_op = optimization.create_optimizer(
           total_loss, learning_rate, num_train_steps, num_warmup_steps, use_tpu)
-
+      total_loss = masked_lm_loss 
       output_spec = tf.contrib.tpu.TPUEstimatorSpec(
           mode=mode,
           loss=total_loss,
           train_op=train_op,
           scaffold_fn=scaffold_fn)
+    elif mode == tf.estimator.ModeKeys.PREDICT:
+      top_k_idx=get_candi_output(bert_config, model.get_sequence_output(), model.get_embedding_table(),
+         masked_lm_positions, masked_lm_ids, masked_lm_weights)
+      
+      top_k_list=[]
+          
+      return tf.contrib.tpu.TPUEstimatorSpec(
+        mode=mode,
+          predictions={"top_k_res": top_k_idx,
+          'input':input_ids},
+          scaffold_fn=scaffold_fn)
+      
     elif mode == tf.estimator.ModeKeys.EVAL:
-
+      (masked_lm_loss,masked_lm_example_loss, masked_lm_log_probs) = get_masked_lm_output(
+         bert_config, model.get_sequence_output(), model.get_embedding_table(),
+         masked_lm_positions, masked_lm_ids, masked_lm_weights)
+      total_loss = masked_lm_loss 
       def metric_fn(masked_lm_example_loss, masked_lm_log_probs, masked_lm_ids,
                     masked_lm_weights):
         """Computes the loss and accuracy of the model."""
@@ -218,9 +237,6 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
           loss=total_loss,
           eval_metrics=eval_metrics,
           scaffold_fn=scaffold_fn)
-    elif mode == tf.estimator.ModeKeys.PREDICT:
-      
-      pass
     else:
       raise ValueError("Only TRAIN and EVAL modes are supported: %s" % (mode))
 
@@ -255,7 +271,7 @@ def get_masked_lm_output(bert_config, input_tensor, output_weights, positions,
     logits = tf.matmul(input_tensor, output_weights, transpose_b=True)
     logits = tf.nn.bias_add(logits, output_bias)
     log_probs = tf.nn.log_softmax(logits, axis=-1)
-    pdb.set_trace()
+    # pdb.set_trace()
     label_ids = tf.reshape(label_ids, [-1])
     label_weights = tf.reshape(label_weights, [-1])
 
@@ -277,6 +293,12 @@ def get_candi_output(bert_config, input_tensor, output_weights, positions,
                          label_ids, label_weights):
   """Get loss and log probs for the masked LM."""
   # input_tensor = gather_indexes(input_tensor, positions)
+  sequence_shape = modeling.get_shape_list(input_tensor, expected_rank=3)
+  batch_size = sequence_shape[0]
+  seq_length = sequence_shape[1]
+  width = sequence_shape[2]
+  input_tensor = tf.reshape(input_tensor,
+                                    [batch_size * seq_length, width])
 
   with tf.variable_scope("cls/predictions"):
     # We apply one more non-linear transformation before the output layer.
@@ -297,25 +319,15 @@ def get_candi_output(bert_config, input_tensor, output_weights, positions,
         shape=[bert_config.vocab_size],
         initializer=tf.zeros_initializer())
     logits = tf.matmul(input_tensor, output_weights, transpose_b=True)
+    #batch*seq,vocab_size
     logits = tf.nn.bias_add(logits, output_bias)
     log_probs = tf.nn.log_softmax(logits, axis=-1)
-    pdb.set_trace()
-    # label_ids = tf.reshape(label_ids, [-1])
-    # label_weights = tf.reshape(label_weights, [-1])
-
-    # one_hot_labels = tf.one_hot(
-    #     label_ids, depth=bert_config.vocab_size, dtype=tf.float32)
-
-    # # The `positions` tensor might be zero-padded (if the sequence is too
-    # # short to have the maximum number of predictions). The `label_weights`
-    # # tensor has a value of 1.0 for every real prediction and 0.0 for the
-    # # padding predictions.
-    # per_example_loss = -tf.reduce_sum(log_probs * one_hot_labels, axis=[-1])
-    # numerator = tf.reduce_sum(label_weights * per_example_loss)
-    # denominator = tf.reduce_sum(label_weights) + 1e-5
-    # loss = numerator / denominator
-  return None
-  # return (loss, per_example_loss, log_probs)
+    
+    log_probs = tf.reshape(log_probs,
+                                    [batch_size , seq_length, -1])
+    _,top_k_idx=tf.nn.top_k(log_probs,5)
+    
+  return top_k_idx
 
 
 def get_next_sentence_output(bert_config, input_tensor, labels):
@@ -332,7 +344,7 @@ def get_next_sentence_output(bert_config, input_tensor, labels):
         "output_bias", shape=[2], initializer=tf.zeros_initializer())
 
     logits = tf.matmul(input_tensor, output_weights, transpose_b=True)
-    logits = tf.nn.bias_add(logits, output_bias)
+    logits = tf.nn.bias_add(logitxs, output_bias)
     log_probs = tf.nn.log_softmax(logits, axis=-1)
     labels = tf.reshape(labels, [-1])
     one_hot_labels = tf.one_hot(labels, depth=2, dtype=tf.float32)
@@ -366,7 +378,8 @@ def input_fn_builder(input_files,
 
   def input_fn(params):
     """The actual input function."""
-    batch_size = params["batch_size"]
+    # batch_size = params["batch_size"]
+    batch_size=20
 
     name_to_features = {
         "input_ids":
@@ -442,8 +455,8 @@ def _decode_record(record, name_to_features):
 def main(_):
   tf.logging.set_verbosity(tf.logging.INFO)
 
-  if not FLAGS.do_train and not FLAGS.do_eval:
-    raise ValueError("At least one of `do_train` or `do_eval` must be True.")
+  # if not FLAGS.do_train and not FLAGS.do_eval:
+  #   raise ValueError("At least one of `do_train` or `do_eval` must be True.")
 
   bert_config = modeling.BertConfig.from_json_file(FLAGS.bert_config_file)
 
@@ -500,6 +513,30 @@ def main(_):
         max_predictions_per_seq=FLAGS.max_predictions_per_seq,
         is_training=True)
     estimator.train(input_fn=train_input_fn, max_steps=FLAGS.num_train_steps)
+  if FLAGS.do_predict:
+    tf.logging.info("***** Predicting *****")
+    tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
+    train_input_fn = input_fn_builder(
+        input_files=input_files,
+        max_seq_length=FLAGS.max_seq_length,
+        max_predictions_per_seq=FLAGS.max_predictions_per_seq,
+        is_training=False)
+
+    tokenizer = tokenization.FullTokenizer(
+      vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
+    vocab_words = list(tokenizer.vocab.keys())
+    res=estimator.predict(input_fn=train_input_fn)
+    i=0
+    for item in res:
+      if i==1:
+        break
+      top_k_list = item['top_k_res']
+      input_seq =item['input']
+      print([vocab_words[token_idx] for token_idx in input_seq] if vocab_words[token_idx] != '[PAD]')
+      i+=1
+      for seq in top_k_list:
+        print( [vocab_words[token_idx] for token_idx in seq])
+          
   
   if FLAGS.do_eval:
     tf.logging.info("***** Running evaluation *****")
