@@ -1,0 +1,9 @@
+<ESSAY title="不能參加朋友找到工作的慶祝會">
+<TEXT>
+<PASSAGE id="A2-0003-1">但是我不能去參加，因為我有一點事情阿！</PASSAGE>
+</TEXT>
+<MISTAKE id="A2-0003-1" location="18">
+<WRONG>有一點事情阿</WRONG>
+<CORRECTION>有一點事情啊</CORRECTION>
+</MISTAKE>
+</ESSAY>

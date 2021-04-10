@@ -24,7 +24,7 @@ import modeling
 import optimization
 import tensorflow as tf
 import tokenization
-
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 flags = tf.flags
 
 FLAGS = flags.FLAGS
@@ -76,7 +76,8 @@ flags.DEFINE_integer("train_batch_size", 32, "Total batch size for training.")
 
 flags.DEFINE_integer("eval_batch_size", 8, "Total batch size for eval.")
 
-flags.DEFINE_float("learning_rate", 5e-5, "The initial learning rate for Adam.")
+flags.DEFINE_float("learning_rate", 5e-5,
+                   "The initial learning rate for Adam.")
 
 flags.DEFINE_integer("num_train_steps", 100000, "Number of training steps.")
 
@@ -153,7 +154,7 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
     scaffold_fn = None
     if init_checkpoint:
       (assignment_map, initialized_variable_names
-      ) = modeling.get_assignment_map_from_checkpoint(tvars, init_checkpoint)
+       ) = modeling.get_assignment_map_from_checkpoint(tvars, init_checkpoint)
       if use_tpu:
 
         def tpu_scaffold():
@@ -174,34 +175,35 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
 
     output_spec = None
     if mode == tf.estimator.ModeKeys.TRAIN:
-      (masked_lm_loss,masked_lm_example_loss, masked_lm_log_probs) = get_masked_lm_output(
-         bert_config, model.get_sequence_output(), model.get_embedding_table(),
-         masked_lm_positions, masked_lm_ids, masked_lm_weights)
+      (masked_lm_loss, masked_lm_example_loss, masked_lm_log_probs) = get_masked_lm_output(
+          bert_config, model.get_sequence_output(), model.get_embedding_table(),
+          masked_lm_positions, masked_lm_ids, masked_lm_weights)
       train_op = optimization.create_optimizer(
           total_loss, learning_rate, num_train_steps, num_warmup_steps, use_tpu)
-      total_loss = masked_lm_loss 
+      total_loss = masked_lm_loss
       output_spec = tf.contrib.tpu.TPUEstimatorSpec(
           mode=mode,
           loss=total_loss,
           train_op=train_op,
           scaffold_fn=scaffold_fn)
     elif mode == tf.estimator.ModeKeys.PREDICT:
-      top_k_idx=get_candi_output(bert_config, model.get_sequence_output(), model.get_embedding_table(),
-         masked_lm_positions, masked_lm_ids, masked_lm_weights)
-      
-      top_k_list=[]
-          
+      top_k_idx = get_candi_output(bert_config, model.get_sequence_output(), model.get_embedding_table(),
+                                   masked_lm_positions, masked_lm_ids, masked_lm_weights)
+
+      top_k_list = []
+
       return tf.contrib.tpu.TPUEstimatorSpec(
-        mode=mode,
+          mode=mode,
           predictions={"top_k_res": top_k_idx,
-          'input':input_ids},
+                       'input': input_ids},
           scaffold_fn=scaffold_fn)
-      
+
     elif mode == tf.estimator.ModeKeys.EVAL:
-      (masked_lm_loss,masked_lm_example_loss, masked_lm_log_probs) = get_masked_lm_output(
-         bert_config, model.get_sequence_output(), model.get_embedding_table(),
-         masked_lm_positions, masked_lm_ids, masked_lm_weights)
-      total_loss = masked_lm_loss 
+      (masked_lm_loss, masked_lm_example_loss, masked_lm_log_probs) = get_masked_lm_output(
+          bert_config, model.get_sequence_output(), model.get_embedding_table(),
+          masked_lm_positions, masked_lm_ids, masked_lm_weights)
+      total_loss = masked_lm_loss
+
       def metric_fn(masked_lm_example_loss, masked_lm_log_probs, masked_lm_ids,
                     masked_lm_weights):
         """Computes the loss and accuracy of the model."""
@@ -218,8 +220,6 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
             weights=masked_lm_weights)
         masked_lm_mean_loss = tf.metrics.mean(
             values=masked_lm_example_loss, weights=masked_lm_weights)
-
-     
 
         return {
             "masked_lm_accuracy": masked_lm_accuracy,
@@ -289,8 +289,9 @@ def get_masked_lm_output(bert_config, input_tensor, output_weights, positions,
 
   return (loss, per_example_loss, log_probs)
 
+
 def get_candi_output(bert_config, input_tensor, output_weights, positions,
-                         label_ids, label_weights):
+                     label_ids, label_weights):
   """Get loss and log probs for the masked LM."""
   # input_tensor = gather_indexes(input_tensor, positions)
   sequence_shape = modeling.get_shape_list(input_tensor, expected_rank=3)
@@ -298,7 +299,7 @@ def get_candi_output(bert_config, input_tensor, output_weights, positions,
   seq_length = sequence_shape[1]
   width = sequence_shape[2]
   input_tensor = tf.reshape(input_tensor,
-                                    [batch_size * seq_length, width])
+                            [batch_size * seq_length, width])
 
   with tf.variable_scope("cls/predictions"):
     # We apply one more non-linear transformation before the output layer.
@@ -322,11 +323,11 @@ def get_candi_output(bert_config, input_tensor, output_weights, positions,
     #batch*seq,vocab_size
     logits = tf.nn.bias_add(logits, output_bias)
     log_probs = tf.nn.log_softmax(logits, axis=-1)
-    
+
     log_probs = tf.reshape(log_probs,
-                                    [batch_size , seq_length, -1])
-    _,top_k_idx=tf.nn.top_k(log_probs,5)
-    
+                           [batch_size, seq_length, -1])
+    _, top_k_idx = tf.nn.top_k(log_probs, 5)
+
   return top_k_idx
 
 
@@ -372,14 +373,14 @@ def gather_indexes(sequence_tensor, positions):
 def input_fn_builder(input_files,
                      max_seq_length,
                      max_predictions_per_seq,
-                     is_training,
+                     mode,
                      num_cpu_threads=4):
   """Creates an `input_fn` closure to be passed to TPUEstimator."""
 
   def input_fn(params):
     """The actual input function."""
     # batch_size = params["batch_size"]
-    batch_size=20
+    batch_size = 20
 
     name_to_features = {
         "input_ids":
@@ -400,7 +401,7 @@ def input_fn_builder(input_files,
 
     # For training, we want a lot of parallel reading and shuffling.
     # For eval, we want no shuffling and parallel reading doesn't matter.
-    if is_training:
+    if mode=='train':
       d = tf.data.Dataset.from_tensor_slices(tf.constant(input_files))
       d = d.repeat()
       d = d.shuffle(buffer_size=len(input_files))
@@ -420,7 +421,8 @@ def input_fn_builder(input_files,
       d = tf.data.TFRecordDataset(input_files)
       # Since we evaluate for a fixed number of steps we don't want to encounter
       # out-of-range exceptions.
-      d = d.repeat()
+      if mode=='eval':
+        d = d.repeat()
 
     # We must `drop_remainder` on training because the TPU requires fixed
     # size dimensions. For eval, we assume we are evaluating on the CPU or GPU
@@ -511,33 +513,38 @@ def main(_):
         input_files=input_files,
         max_seq_length=FLAGS.max_seq_length,
         max_predictions_per_seq=FLAGS.max_predictions_per_seq,
-        is_training=True)
+        mode='train')
     estimator.train(input_fn=train_input_fn, max_steps=FLAGS.num_train_steps)
   if FLAGS.do_predict:
     tf.logging.info("***** Predicting *****")
     tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
-    train_input_fn = input_fn_builder(
+    infer_input_fn = input_fn_builder(
         input_files=input_files,
         max_seq_length=FLAGS.max_seq_length,
         max_predictions_per_seq=FLAGS.max_predictions_per_seq,
-        is_training=False)
+        mode='predict')
 
     tokenizer = tokenization.FullTokenizer(
-      vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
+        vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
     vocab_words = list(tokenizer.vocab.keys())
-    res=estimator.predict(input_fn=train_input_fn)
-    i=0
+    res = estimator.predict(input_fn=infer_input_fn)
+    i = 0
+    # sighan_test='files'
+    # test_lines = [line for x in open(sighan_test)]
     for item in res:
-      if i==1:
+      if i == 1:
         break
-      top_k_list = item['top_k_res']
-      input_seq =item['input']
-      print([vocab_words[token_idx] for token_idx in input_seq] if vocab_words[token_idx] != '[PAD]')
-      i+=1
-      for seq in top_k_list:
-        print( [vocab_words[token_idx] for token_idx in seq])
-          
-  
+      seq_topk = item['top_k_res']
+      input_ids = item['input']
+      # pdb.set_trace()
+      input_tokens= [vocab_words[token_idx]
+              for token_idx in input_ids if vocab_words[token_idx] != '[PAD]']
+      len_input= len(input_tokens)
+      print(input_tokens[1:len_input-2])
+      for seq in seq_topk[1:len_input-2]:
+        print([vocab_words[token_idx] for token_idx in seq])
+    
+
   if FLAGS.do_eval:
     tf.logging.info("***** Running evaluation *****")
     tf.logging.info("  Batch size = %d", FLAGS.eval_batch_size)
@@ -546,7 +553,7 @@ def main(_):
         input_files=input_files,
         max_seq_length=FLAGS.max_seq_length,
         max_predictions_per_seq=FLAGS.max_predictions_per_seq,
-        is_training=False)
+        mode='eval')
 
     result = estimator.evaluate(
         input_fn=eval_input_fn, steps=FLAGS.max_eval_steps)
