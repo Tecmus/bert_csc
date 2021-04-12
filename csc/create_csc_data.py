@@ -206,7 +206,6 @@ def create_training_instances(input_files, tokenizer, max_seq_length,
         arr=line.split('\t')
         if len(line)<3:
           continue
-        
         label,input_line,target_line=arr
         
         input_tokens = tokenizer.tokenize(input_line)
@@ -228,7 +227,7 @@ def create_training_instances(input_files, tokenizer, max_seq_length,
               all_documents, document_index, max_seq_length, short_seq_prob,
               masked_lm_prob, max_predictions_per_seq, vocab_words, rng))
 
-  rng.shuffle(instances)
+  # rng.shuffle(instances)
   return instances
 
 def create_csc_masked_lm_predictions(tokens_input,tokens_target, masked_lm_prob,

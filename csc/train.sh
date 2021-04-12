@@ -6,6 +6,7 @@ export BERT_BASE_DIR=/home/azureuser/projects/chinese_L-12_H-768_A-12/chinese_L-
 # unzip chinese_L-12_H-768_A-12.zip
 # cd ..
 # export BERT_BASE_DIR=/kaggle/working/bert_csc/csc/model/chinese_L-12_H-768_A-12
+#  --init_checkpoint=/home/azureuser/save/save/model.ckpt-10000 \
 # --input_file=/tmp/tf_examples.tfrecord \
 python run_pretraining.py \
   -input_file=./record_data/test_csc_ocr.tfrecord \

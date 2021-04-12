@@ -24,8 +24,8 @@ import modeling
 import optimization
 import tensorflow as tf
 import tokenization
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
-flags = tf.flags
+# os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+flags = tf.app.flags
 
 FLAGS = flags.FLAGS
 
@@ -453,6 +453,31 @@ def _decode_record(record, name_to_features):
 
   return example
 
+def process_output(res,vocab_words):
+  for item in res:
+      seq_topk = item['top_k_res']
+      input_ids = item['input']
+      
+      input_tokens= [vocab_words[token_idx]
+              for token_idx in input_ids if vocab_words[token_idx] != '[PAD]']
+      len_input= len(input_tokens)
+      input_seq=input_tokens[1:len_input-2]
+      output_seq=[]
+      #debug
+      # print(input_seq)
+      for input_token,seq in zip(input_seq, seq_topk[1:len_input-2]):
+        out_candi_seq=[vocab_words[token_idx] for token_idx in seq]
+        # print(out_candi_seq)
+        candi_set = set(out_candi_seq)
+        if input_token in candi_set:
+          output_seq.append(input_token)
+        else:  
+          output_seq.append(out_candi_seq[0])
+      
+      yield ''.join(input_seq),''.join(output_seq)
+    
+  
+
 
 def main(_):
   tf.logging.set_verbosity(tf.logging.INFO)
@@ -528,22 +553,10 @@ def main(_):
         vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
     vocab_words = list(tokenizer.vocab.keys())
     res = estimator.predict(input_fn=infer_input_fn)
-    i = 0
-    # sighan_test='files'
-    # test_lines = [line for x in open(sighan_test)]
-    for item in res:
-      if i == 1:
-        break
-      seq_topk = item['top_k_res']
-      input_ids = item['input']
-      # pdb.set_trace()
-      input_tokens= [vocab_words[token_idx]
-              for token_idx in input_ids if vocab_words[token_idx] != '[PAD]']
-      len_input= len(input_tokens)
-      print(input_tokens[1:len_input-2])
-      for seq in seq_topk[1:len_input-2]:
-        print([vocab_words[token_idx] for token_idx in seq])
     
+    for in_seq,out_seq  in  process_output(res,vocab_words):
+      print(in_seq+'\t'+out_seq)
+
 
   if FLAGS.do_eval:
     tf.logging.info("***** Running evaluation *****")
