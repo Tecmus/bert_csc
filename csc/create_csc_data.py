@@ -316,6 +316,10 @@ def create_instances_from_document(
       masked_lm_positions=masked_lm_positions,
       masked_lm_labels=masked_lm_labels)
   instances.append(instance)
+  print(len(tokens),tokens)
+  print(len(segment_ids),segment_ids)
+  print(len(masked_lm_positions),masked_lm_positions)
+  print(len(masked_lm_labels),masked_lm_labels)
   
 
 

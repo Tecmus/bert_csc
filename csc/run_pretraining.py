@@ -178,9 +178,10 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
       (masked_lm_loss, masked_lm_example_loss, masked_lm_log_probs) = get_masked_lm_output(
           bert_config, model.get_sequence_output(), model.get_embedding_table(),
           masked_lm_positions, masked_lm_ids, masked_lm_weights)
+      total_loss = masked_lm_loss
       train_op = optimization.create_optimizer(
           total_loss, learning_rate, num_train_steps, num_warmup_steps, use_tpu)
-      total_loss = masked_lm_loss
+      
       output_spec = tf.contrib.tpu.TPUEstimatorSpec(
           mode=mode,
           loss=total_loss,
@@ -414,7 +415,7 @@ def input_fn_builder(input_files,
       d = d.apply(
           tf.contrib.data.parallel_interleave(
               tf.data.TFRecordDataset,
-              sloppy=is_training,
+              sloppy=True,
               cycle_length=cycle_length))
       d = d.shuffle(buffer_size=100)
     else:

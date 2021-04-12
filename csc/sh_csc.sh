@@ -1,7 +1,7 @@
 
-export BERT_BASE_DIR=/home/azureuser/projects/chinese_L-12_H-768_A-12/chinese_L-12_H-768_A-12
-python create_csc_data.py \
-  --input_file=./sighan15/sighan8csc_release1.0/sighan8csc_release1.0/Test/test_input_tmp.txt \
+export BERT_BASE_DIR=/root/model/chinese_L-12_H-768_A-12
+PYTHONIOENCODING=utf-8 python create_csc_data.py \
+  --input_file=./sighan15/sighan8csc_release1.0/sighan8csc_release1.0/Test/test_input.txt \
   --output_file=./record_data/sighan15_test.tfrecord \
   --vocab_file=$BERT_BASE_DIR/vocab.txt \
   --do_lower_case=True \
