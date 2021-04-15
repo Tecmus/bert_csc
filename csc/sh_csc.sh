@@ -1,8 +1,8 @@
 
 export BERT_BASE_DIR=/root/model/chinese_L-12_H-768_A-12
 PYTHONIOENCODING=utf-8 python create_csc_data.py \
-  --input_file=./sighan15/sighan8csc_release1.0/sighan8csc_release1.0/Test/test_input.txt \
-  --output_file=./record_data/sighan15_test.tfrecord \
+  --input_file=./ocr/data/ocr_test_1000.txt \
+  --output_file=./record_data/ocr_test_no_shuf.tfrecord \
   --vocab_file=$BERT_BASE_DIR/vocab.txt \
   --do_lower_case=True \
   --max_seq_length=128 \

@@ -34,6 +34,10 @@ flags.DEFINE_string(
     "bert_config_file", None,
     "The config json file corresponding to the pre-trained BERT model. "
     "This specifies the model architecture.")
+flags.DEFINE_integer(
+    "top_k", 5,
+    "The top k of candi predict word"
+    )
 
 flags.DEFINE_string(
     "input_file", None,
@@ -133,9 +137,7 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
     input_ids = features["input_ids"]
     input_mask = features["input_mask"]
     segment_ids = features["segment_ids"]
-    masked_lm_positions = features["masked_lm_positions"]
-    masked_lm_ids = features["masked_lm_ids"]
-    masked_lm_weights = features["masked_lm_weights"]
+   
     # next_sentence_labels = features["next_sentence_labels"]
 
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
@@ -175,6 +177,9 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
 
     output_spec = None
     if mode == tf.estimator.ModeKeys.TRAIN:
+      masked_lm_positions = features["masked_lm_positions"]
+      masked_lm_ids = features["masked_lm_ids"]
+      masked_lm_weights = features["masked_lm_weights"]
       (masked_lm_loss, masked_lm_example_loss, masked_lm_log_probs) = get_masked_lm_output(
           bert_config, model.get_sequence_output(), model.get_embedding_table(),
           masked_lm_positions, masked_lm_ids, masked_lm_weights)
@@ -188,9 +193,8 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
           train_op=train_op,
           scaffold_fn=scaffold_fn)
     elif mode == tf.estimator.ModeKeys.PREDICT:
-      top_k_idx = get_candi_output(bert_config, model.get_sequence_output(), model.get_embedding_table(),
-                                   masked_lm_positions, masked_lm_ids, masked_lm_weights)
-
+      top_k_idx = get_candi_output(bert_config, model.get_sequence_output(), model.get_embedding_table())
+      
       top_k_list = []
 
       return tf.contrib.tpu.TPUEstimatorSpec(
@@ -200,6 +204,9 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
           scaffold_fn=scaffold_fn)
 
     elif mode == tf.estimator.ModeKeys.EVAL:
+      masked_lm_positions = features["masked_lm_positions"]
+      masked_lm_ids = features["masked_lm_ids"]
+      masked_lm_weights = features["masked_lm_weights"]
       (masked_lm_loss, masked_lm_example_loss, masked_lm_log_probs) = get_masked_lm_output(
           bert_config, model.get_sequence_output(), model.get_embedding_table(),
           masked_lm_positions, masked_lm_ids, masked_lm_weights)
@@ -291,8 +298,7 @@ def get_masked_lm_output(bert_config, input_tensor, output_weights, positions,
   return (loss, per_example_loss, log_probs)
 
 
-def get_candi_output(bert_config, input_tensor, output_weights, positions,
-                     label_ids, label_weights):
+def get_candi_output(bert_config, input_tensor, output_weights):
   """Get loss and log probs for the masked LM."""
   # input_tensor = gather_indexes(input_tensor, positions)
   sequence_shape = modeling.get_shape_list(input_tensor, expected_rank=3)
@@ -327,7 +333,7 @@ def get_candi_output(bert_config, input_tensor, output_weights, positions,
 
     log_probs = tf.reshape(log_probs,
                            [batch_size, seq_length, -1])
-    _, top_k_idx = tf.nn.top_k(log_probs, 5)
+    _, top_k_idx = tf.nn.top_k(log_probs, FLAGS.top_k)
 
   return top_k_idx
 
@@ -531,6 +537,7 @@ def main(_):
       config=run_config,
       train_batch_size=FLAGS.train_batch_size,
       eval_batch_size=FLAGS.eval_batch_size)
+  
 
   if FLAGS.do_train:
     tf.logging.info("***** Running training *****")
@@ -541,6 +548,27 @@ def main(_):
         max_predictions_per_seq=FLAGS.max_predictions_per_seq,
         mode='train')
     estimator.train(input_fn=train_input_fn, max_steps=FLAGS.num_train_steps)
+
+    def _serving_input_receiver_fn():
+      """Serving input_fn that builds features from placeholders
+      Returns
+        -------
+      tf.estimator.export.ServingInputReceiver
+      """
+      top_k_res = tf.placeholder(dtype=tf.string, shape=[None, None], name='top_k_res')
+      input_ids = tf.placeholder(dtype=tf.int32, shape=[None,None], name='input_ids')
+
+      input_ids = tf.placeholder(dtype=tf.int64, shape=[None, None], name='input_ids')
+      input_mask = tf.placeholder(dtype=tf.int64, shape=[None,None], name='input_mask')
+      segment_ids = tf.placeholder(dtype=tf.int64, shape=[None,None], name='segment_ids')
+
+      receiver_tensors = {'top_k_res': top_k_res, 'input': input_ids}
+      features = {'input_ids': input_ids, 'input_mask': input_mask,'segment_ids':segment_ids}
+
+      return tf.estimator.export.ServingInputReceiver(features, receiver_tensors)
+    export_dir='save_model/'
+    estimator._export_to_tpu = False
+    estimator.export_savedmodel(export_dir, _serving_input_receiver_fn)
   if FLAGS.do_predict:
     tf.logging.info("***** Predicting *****")
     tf.logging.info("  Batch size = %d", FLAGS.train_batch_size)
