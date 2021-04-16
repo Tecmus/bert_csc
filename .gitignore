@@ -1,5 +1,6 @@
 #folder
 csc/model/
+.vscode/
 
 
 # Initially taken from Github's Python gitignore file
