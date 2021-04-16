@@ -2,16 +2,17 @@
 from tensorflow.contrib import predictor
 
 
-# def create_input():
-#     def create_int_feature(values):
-#         feature = tf.train.Feature(int64_list=tf.train.Int64List(value=list(values)))
-#         return feature
-#     features = collections.OrderedDict()
-#     features["input_ids"] = create_int_feature(input_ids)
-#     features["input_mask"] = create_int_feature(input_mask)
-#     features["segment_ids"] = create_int_feature(segment_ids)
-#     tf_example = tf.train.Example(features=tf.train.Features(feature=features))
-#     return tf_example
+def create_input(input_ids,input_mask,segment_ids):
+    def create_int_feature(values):
+        feature = tf.train.Feature(int64_list=tf.train.Int64List(value=list(values)))
+        return feature
+    features = collections.OrderedDict()
+    features["input_ids"] = create_int_feature(input_ids)
+    features["input_mask"] = create_int_feature(input_mask)
+    features["segment_ids"] = create_int_feature(segment_ids)
+    # tf_example = tf.train.Example(features=tf.train.Features(feature=features))
+    
+    return features
 
 # def _serving_input_receiver_fn():
  
@@ -43,6 +44,6 @@ model_dir='./save_model/1618512160'
 predict_fn = predictor.from_saved_model(model_dir)
 
 input_ids=[1]*128
-feed_dict={'input_ids': input_ids, 'input_mask': input_ids,'segment_ids':input_ids}
+feed_dict=create_input(input_ids,input_ids,input_ids)
 pred = predict_fn(feed_dict)['output']
 print(pred)

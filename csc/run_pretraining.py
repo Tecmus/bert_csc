@@ -555,17 +555,17 @@ def main(_):
         -------
       tf.estimator.export.ServingInputReceiver
       """
-      top_k_res = tf.placeholder(dtype=tf.string, shape=[None, None], name='top_k_res')
-      input_ids = tf.placeholder(dtype=tf.int32, shape=[None,None], name='input_ids')
+      # top_k_res = tf.placeholder(dtype=tf.string, shape=[None, None], name='top_k_res')
+      # input_ids = tf.placeholder(dtype=tf.int32, shape=[None,None], name='input_ids')
 
       input_ids = tf.placeholder(dtype=tf.int64, shape=[None, None], name='input_ids')
       input_mask = tf.placeholder(dtype=tf.int64, shape=[None,None], name='input_mask')
       segment_ids = tf.placeholder(dtype=tf.int64, shape=[None,None], name='segment_ids')
-
-      receiver_tensors = {'top_k_res': top_k_res, 'input': input_ids}
+        
+      # receiver_tensors = {'top_k_res': top_k_res, 'input': input_ids}
       features = {'input_ids': input_ids, 'input_mask': input_mask,'segment_ids':segment_ids}
-
-      return tf.estimator.export.ServingInputReceiver(features, receiver_tensors)
+      
+      return tf.estimator.export.ServingInputReceiver(features, features)
     export_dir='save_model/'
     estimator._export_to_tpu = False
     estimator.export_savedmodel(export_dir, _serving_input_receiver_fn)
