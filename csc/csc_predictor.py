@@ -22,6 +22,7 @@ flags.DEFINE_integer(
     "The maximum total input sequence length after WordPiece tokenization. "
     "Sequences longer than this will be truncated, and sequences shorter "
     "than this will be padded. Must match data generation.")
+    
 def create_input(input_ids,input_mask,segment_ids):
     features = collections.OrderedDict()
     features["input_ids"] = input_ids
@@ -54,8 +55,6 @@ def decode_to_query(ids,tokenizer):
     
     pass
 def process_output(item,tokenizer):
-#   for item in res:
-
     seq_topk = item['top_k_res']
     input_ids = item['input']
     
@@ -68,12 +67,8 @@ def process_output(item,tokenizer):
     len_input= len(input_tokens)
     input_seq=input_tokens[1:len_input-2]
     output_seq=[]
-    #debug
-    # print(input_seq)
     for input_token,seq in zip(input_seq, seq_topk[1:len_input-1]):
         out_candi_seq=tokenizer.convert_ids_to_tokens(seq)
-        # out_candi_seq=[vocab_words[token_idx] for token_idx in seq]
-        # print(out_candi_seq)
         candi_set = set(out_candi_seq)
         if input_token in candi_set:
             output_seq.append(input_token)
@@ -83,10 +78,11 @@ def process_output(item,tokenizer):
     return ''.join(input_seq),''.join(output_seq)
 
 def main():
-    model_dir='./save_model/1618549779'
-    predict_fn = predictor.from_saved_model(model_dir)
-    query='今天的天晴不错'
-    query='你小起来真好看'
+
+    predict_fn = predictor.from_saved_model(FLAGS.model_dir)
+    
+    query='女通非常使利'
+    
     tokenizer = tokenization.FullTokenizer(
     vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
     
