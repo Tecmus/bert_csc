@@ -6,7 +6,14 @@
    
 ## 方案1:
 
-loss: bert+ mlm
+loss: mlm
+
+## 方案2:
+
+加入多任务学习
+
+loss: [ mlm  + correct position]
+
 
 举例：
 >input: 今天天晴不错。
